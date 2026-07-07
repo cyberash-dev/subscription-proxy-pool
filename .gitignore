@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Test / coverage output
+coverage/
+spec/runs/
+
+# Local state / data
+spp-state-home-*/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs & temp
+*.log
+*.tmp
+npm-debug.log*
+
+# Env / secrets
+.env
+.env.*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# SDD approval plans: transient transaction state
+.sdd/plans/

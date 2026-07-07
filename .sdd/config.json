@@ -1,0 +1,82 @@
+{
+	"spec_file": "spec/00-context.md",
+	"baseline_id": "spp:BL-001",
+	"discovery_scope": [
+		"src",
+		"migrations",
+		"package.json",
+		"tsconfig.json",
+		".sdd/config.json"
+	],
+	"mechanism": "git_tree_hash_v1",
+	"lint": {
+		"spec_files": [
+			"spec/partitions/*.md",
+			"spec/surfaces/*.md",
+			"spec/policies/*.md"
+		],
+		"approver_blocklist": [
+			"claude",
+			"claude-code",
+			"codex",
+			"sdd-cli",
+			"spec-lint"
+		]
+	},
+	"partitions": {
+		"spp-db": {
+			"spec_paths": ["spec/partitions/db.md"],
+			"test_paths": [
+				"src/shared/**/tests/*.ts",
+				"src/features/**/tests/*.ts",
+				"src/infrastructure/tests/*.ts"
+			]
+		},
+		"spp-auth": {
+			"spec_paths": ["spec/partitions/auth.md"],
+			"test_paths": [
+				"src/features/**/tests/*.ts",
+				"src/infrastructure/tests/*.ts"
+			]
+		},
+		"spp-access-keys": {
+			"spec_paths": ["spec/partitions/access-keys.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		},
+		"spp-subscriptions": {
+			"spec_paths": ["spec/partitions/subscriptions.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		},
+		"spp-subscription-oauth": {
+			"spec_paths": ["spec/partitions/subscription-oauth.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		},
+		"spp-load-monitor": {
+			"spec_paths": ["spec/partitions/load-monitor.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		},
+		"spp-pool-selection": {
+			"spec_paths": ["spec/partitions/pool-selection.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		},
+		"spp-proxy": {
+			"spec_paths": ["spec/partitions/proxy.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		},
+		"spp-proxy-http": {
+			"spec_paths": ["spec/surfaces/proxy-http.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		},
+		"spp-mgmt-http": {
+			"spec_paths": ["spec/surfaces/mgmt-http.md"],
+			"test_paths": [
+				"src/features/**/tests/*.ts",
+				"src/infrastructure/tests/*.ts"
+			]
+		},
+		"pol": {
+			"spec_paths": ["spec/policies/*.md"],
+			"test_paths": ["src/features/**/tests/*.ts"]
+		}
+	}
+}

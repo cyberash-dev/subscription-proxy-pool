@@ -1,0 +1,5 @@
+#!/bin/sh
+# Pre-push gate: types + tests.
+set -e
+npm run tsc
+npm run test

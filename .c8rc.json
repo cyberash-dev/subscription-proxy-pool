@@ -1,0 +1,29 @@
+{
+	"all": true,
+	"src": ["src"],
+	"include": ["src/**/*.ts"],
+	"exclude": [
+		"**/*.d.ts",
+		"**/ports/**",
+		"**/tests/**",
+		"src/cli/Main.ts",
+		"src/infrastructure/Server.ts",
+		"src/infrastructure/SppConfigModule.ts",
+		"src/infrastructure/ConfigModuleLoader.ts",
+		"src/shared/db/Engine.ts",
+		"src/shared/db/PostgresEngine.ts",
+		"src/shared/domain/Pool.ts",
+		"src/shared/domain/Load.ts",
+		"src/shared/pkce/PkceSession.ts",
+		"src/features/access-keys/domain/ProxyKey.ts",
+		"src/features/auth/domain/User.ts",
+		"src/features/subscription-oauth/domain/OAuthGrant.ts"
+	],
+	"reporter": ["text-summary", "lcov", "json-summary"],
+	"reports-dir": "coverage",
+	"check-coverage": true,
+	"lines": 90,
+	"statements": 90,
+	"functions": 93,
+	"branches": 80
+}

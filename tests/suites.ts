@@ -1,0 +1,25 @@
+/* Test-suite registry: package-root-relative paths, one runnable suite each.
+ * run-all.ts derives the suite name + absolute path per entry. */
+export const SUITE_FILES: ReadonlyArray<string> = [
+	"src/shared/db/tests/Migrations.test.ts",
+	"src/shared/db/tests/SqliteEngine.test.ts",
+	"src/shared/db/tests/Connection.test.ts",
+	"src/shared/config/tests/Env.test.ts",
+	"src/shared/crypto/tests/SecretCrypter.test.ts",
+	"src/features/auth/tests/Auth.test.ts",
+	"src/features/access-keys/tests/AccessKeys.test.ts",
+	"src/features/subscription-oauth/tests/SubscriptionOauth.test.ts",
+	"src/features/subscription-oauth/tests/TokenManager.test.ts",
+	"src/features/subscription-oauth/tests/SubscriptionVerify.test.ts",
+	"src/features/subscriptions/tests/Subscriptions.test.ts",
+	"src/features/load-monitor/tests/LoadMonitor.test.ts",
+	"src/features/load-monitor/tests/UpstreamProbe.test.ts",
+	"src/features/pool-selection/tests/PoolSelection.test.ts",
+	"src/features/proxy/tests/Proxy.test.ts",
+	"src/features/proxy/tests/Proxy.streaming.test.ts",
+	"src/features/proxy/tests/Proxy.responseHeaders.test.ts",
+	"src/features/proxy/tests/Proxy.upstreamBody.test.ts",
+	"src/features/proxy/tests/EgressProxy.test.ts",
+	"src/infrastructure/tests/Management.test.ts",
+	"src/infrastructure/tests/ConfigModule.test.ts",
+];

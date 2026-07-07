@@ -1,0 +1,11 @@
+#!/bin/sh
+# Pre-commit gate: format, types, lint, tests + coverage ratchet. The ratchet
+# blocks the commit if any total coverage metric drops below
+# .coverage-baseline.json and auto-raises the baseline on improvement.
+# Bypass in emergencies with `git commit -n`.
+set -e
+npm run format:check
+npm run tsc
+npm run lint
+npm run test:coverage
+node scripts/coverage-ratchet.mjs
