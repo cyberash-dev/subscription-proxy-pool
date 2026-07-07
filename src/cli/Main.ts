@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /*
  * CLI entrypoint (spp-cli@1). Admin-only surface: bootstrap + operation. Most
  * user-facing flows live on the management HTTP API. Dispatch on argv[2].

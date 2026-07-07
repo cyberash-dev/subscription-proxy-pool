@@ -6,6 +6,7 @@
 		"**/*.d.ts",
 		"**/ports/**",
 		"**/tests/**",
+		"src/index.ts",
 		"src/cli/Main.ts",
 		"src/infrastructure/Server.ts",
 		"src/infrastructure/SppConfigModule.ts",
