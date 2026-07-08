@@ -60,6 +60,10 @@ export class ProxyHttpServer {
 			}
 			throw notFound(`no route for ${method} ${path}`);
 		} catch (err) {
+			if (response.headersSent) {
+				response.destroy();
+				return;
+			}
 			sendError(response, err);
 		}
 	}

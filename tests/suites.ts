@@ -17,6 +17,7 @@ export const SUITE_FILES: ReadonlyArray<string> = [
 	"src/features/pool-selection/tests/PoolSelection.test.ts",
 	"src/features/proxy/tests/Proxy.test.ts",
 	"src/features/proxy/tests/Proxy.streaming.test.ts",
+	"src/features/proxy/tests/Proxy.midStreamFailure.test.ts",
 	"src/features/proxy/tests/Proxy.responseHeaders.test.ts",
 	"src/features/proxy/tests/Proxy.upstreamBody.test.ts",
 	"src/features/proxy/tests/EgressProxy.test.ts",

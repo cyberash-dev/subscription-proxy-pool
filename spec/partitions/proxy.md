@@ -214,6 +214,28 @@ unmodeled: []
     scope: first-time-approval
 ```
 
+```yaml
+---
+id: spp-proxy:INV-002
+template: Invariant
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-07T16:13:42.382Z
+  change_request: guard proxy against double writeHead on mid-stream upstream failure (ERR_HTTP_HEADERS_SENT crash)
+  scope: first-time-approval
+version: 1
+applicability: { axis_invariant: true }
+predicate: "When the upstream response body fails after the client response headers have been committed (writeHead already issued), the proxy never issues a second writeHead or error envelope on that response; it terminates the client connection and the server process stays alive to serve other requests."
+evidence: test_probe
+stability: internal
+data_scope: all_data
+policy_refs: []
+test_obligations: [to:spp-proxy:INV-002:mid_stream_failure_no_double_write]
+---
+```
+
 ## 9. External dependencies
 
 ```yaml
