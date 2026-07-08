@@ -316,22 +316,72 @@ approval_record:
 ---
 id: spp-proxy:DLT-002
 template: Delta
-lifecycle.status: approved
+lifecycle.status: removed
 version: 1
 baseline_version: spp:BL-001
 kind: behavior_change
 applicability: { axis_invariant: true }
 statement: "The upstream body preparation drops the client-supplied context_management field before forwarding. The pooled Anthropic endpoint rejects context_management with 400 invalid_request (Extra inputs are not permitted) because the proxy sends a fixed anthropic-beta that does not enable it; stripping the field keeps forwarded requests valid. The spp-proxy:BEH-002 system-identity preparation and every other body field are unchanged. Clients may still send context_management to the proxy (inbound contract unchanged) and it is silently ignored, so spp-proxy-http:SURF-001 is not bumped."
-compatibility_action: ignore
+compatibility_action: no_longer_guaranteed
 tests_old_behavior: "the prepared upstream body forwarded the client context_management field verbatim."
 tests_new_behavior: "the prepared upstream body omits context_management; model, messages and the injected system block are unchanged."
 test_obligations: [to:spp-proxy:DLT-002:strips_context_management]
 approval_record:
   owner_role: tech-lead
   approver_identity: cyberash
-  timestamp: 2026-07-06T13:04:19.042Z
-  change_request: strip context_management from upstream body (400 Extra inputs fix)
+  timestamp: 2026-07-08T20:56:48.914Z
+  change_request: "retired: fixed by DLT-003/DLT-004"
   scope: first-time-approval
+---
+```
+
+```yaml
+---
+id: spp-proxy:DLT-003
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-08T20:56:48.756Z
+  change_request: forward client anthropic-beta (restore prompt-cache TTL)
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "The upstream anthropic-beta header is the ordered union of the mandatory oauth-2025-04-20 and claude-code-20250219 tokens followed by every distinct beta token the client sent on its inbound anthropic-beta header. Previously the proxy sent a fixed anthropic-beta and discarded the client's, which suppressed client capability flags: notably extended-cache-ttl (collapsing the prompt-cache TTL to the 5-minute default so cross-turn requests miss the cache and re-pay the full cache-write prefix) and context-management. The mandatory tokens are always present and duplicates are removed. spp-proxy:BEH-004 and spp-proxy:INV-001 hold unchanged: the forwarded header set is still Authorization, anthropic-version and anthropic-beta with no x-api-key. The inbound request contract is unchanged (anthropic-beta was already an accepted passthrough header, previously ignored), so spp-proxy-http:SURF-001 is not bumped."
+compatibility_action: ignore
+tests_old_behavior: "the upstream anthropic-beta was the fixed string oauth-2025-04-20,claude-code-20250219 regardless of the client's inbound anthropic-beta header."
+tests_new_behavior: "the upstream anthropic-beta carries the mandatory tokens plus the client's extra beta tokens with no duplicates; a request with no inbound anthropic-beta still carries exactly the mandatory tokens."
+test_obligations:
+  [
+    to:spp-proxy:DLT-003:merges_client_beta,
+    to:spp-proxy:DLT-003:mandatory_without_client_beta,
+  ]
+---
+```
+
+```yaml
+---
+id: spp-proxy:DLT-004
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-08T20:56:48.841Z
+  change_request: forward context_management verbatim (supersedes DLT-002)
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "The upstream body preparation forwards the client's context_management field verbatim instead of dropping it. This supersedes spp-proxy:DLT-002, which stripped the field because the fixed anthropic-beta did not enable it and the pooled Anthropic endpoint answered 400 invalid_request (Extra inputs are not permitted). spp-proxy:DLT-003 now forwards the client's context-management beta, so the endpoint accepts the field and Anthropic's server-side context editing stays active, which stops long tool-heavy sessions from re-billing the full transcript every turn. The spp-proxy:BEH-002 identity preparation and every other body field are unchanged. spp-proxy:DLT-002 is retired to removed with this Delta as its replacement."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "the prepared upstream body omitted context_management (spp-proxy:DLT-002)."
+tests_new_behavior: "the prepared upstream body forwards context_management verbatim; model, messages and the injected identity system block are unchanged."
+test_obligations: [to:spp-proxy:DLT-004:forwards_context_management]
 ---
 ```
 

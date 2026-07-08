@@ -15,6 +15,7 @@ import {
 import { notFound } from "../../../../shared/http/Errors.ts";
 import {
 	bearerFrom,
+	betaFrom,
 	readJson,
 	sendError,
 	sendJson,
@@ -47,12 +48,14 @@ export class ProxyHttpServer {
 				(path === "/v1/messages" || path === "/v1/messages/count_tokens")
 			) {
 				const bearer = bearerFrom(req);
+				const clientBeta = betaFrom(req.headers["anthropic-beta"]);
 				const body = await readJson<Record<string, unknown>>(req);
 				const isStream = body.stream === true && path === "/v1/messages";
 				const relay = await this.proxy.handle({
 					bearer,
 					path,
 					body,
+					clientBeta,
 					wantStream: isStream,
 				});
 				await this.relay(response, relay);

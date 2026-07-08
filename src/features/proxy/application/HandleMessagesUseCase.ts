@@ -18,7 +18,6 @@ import {
 import type { Subscription } from "../../subscriptions/domain/Subscription.ts";
 import {
 	buildUpstreamHeaders,
-	dropUnsupportedUpstreamFields,
 	ensureIdentitySystemBlock,
 	filterResponseHeaders,
 	modelOf,
@@ -130,10 +129,11 @@ export class HandleMessagesUseCase implements ProxyPort {
 		request: ProxyRequest,
 		accessToken: string,
 	): Promise<Response> {
-		const injected = dropUnsupportedUpstreamFields(
-			ensureIdentitySystemBlock(request.body, modelOf(request.body)),
+		const injected = ensureIdentitySystemBlock(
+			request.body,
+			modelOf(request.body),
 		);
-		const headers = buildUpstreamHeaders(accessToken);
+		const headers = buildUpstreamHeaders(accessToken, request.clientBeta);
 		headers["accept"] = request.wantStream
 			? "text/event-stream"
 			: "application/json";

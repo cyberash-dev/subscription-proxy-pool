@@ -5,6 +5,7 @@ export interface ProxyRequest {
 	readonly bearer?: string;
 	readonly path: string;
 	readonly body: Record<string, unknown>;
+	readonly clientBeta?: string;
 	readonly wantStream: boolean;
 }
 

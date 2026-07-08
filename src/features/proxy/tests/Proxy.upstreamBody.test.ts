@@ -1,8 +1,10 @@
 /*
- * Upstream body preparation: fields the pooled Anthropic endpoint rejects are
- * dropped before forwarding, while the client's inbound request is unchanged.
+ * Upstream body preparation: the client's context_management field is forwarded
+ * verbatim (the client's context-management beta now reaches the upstream), and
+ * the rest of the body is unchanged.
  *
- * @covers spp-proxy:DLT-002
+ * @covers spp-proxy:DLT-004
+ * @covers spp-proxy:DLT-002 compatibility_action=no_longer_guaranteed
  */
 
 import {
@@ -41,7 +43,7 @@ function assert(cond: boolean, label: string): void {
 	}
 }
 
-async function testStripsContextManagement(): Promise<void> {
+async function testForwardsContextManagement(): Promise<void> {
 	const upstream = new FakeUpstream(() => jsonResponse(200));
 	const useCase = mkUseCase({
 		selector: new FakeSelector([mkSub("s1", "tok")]),
@@ -62,20 +64,20 @@ async function testStripsContextManagement(): Promise<void> {
 	);
 
 	const forwarded = JSON.parse(upstream.requests[0].body) as {
-		context_management?: unknown;
+		context_management?: { edits?: unknown };
 		model?: unknown;
 		messages?: unknown;
 	};
 	assert(
-		!("context_management" in forwarded),
-		"context_management stripped from upstream body",
+		Array.isArray(forwarded.context_management?.edits),
+		"context_management forwarded verbatim to upstream body",
 	);
 	assert(forwarded.model === "claude-opus-4-8", "model preserved");
 	assert(Array.isArray(forwarded.messages), "messages preserved");
 }
 
 async function main(): Promise<void> {
-	await runTest("strips_context_management", testStripsContextManagement);
+	await runTest("forwards_context_management", testForwardsContextManagement);
 
 	const report = { suite: "ProxyUpstreamBody", results };
 	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

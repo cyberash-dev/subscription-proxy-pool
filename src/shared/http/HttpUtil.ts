@@ -53,6 +53,15 @@ export function bearerFrom(req: IncomingMessage): string | undefined {
 	return match?.[1]?.trim();
 }
 
+export function betaFrom(
+	header: string | string[] | undefined,
+): string | undefined {
+	if (header === undefined) {
+		return undefined;
+	}
+	return Array.isArray(header) ? header.join(",") : header;
+}
+
 export function sendJson(
 	response: ServerResponse,
 	status: number,

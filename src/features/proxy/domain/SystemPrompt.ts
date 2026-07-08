@@ -68,29 +68,38 @@ export function modelOf(body: Record<string, unknown>): string {
 	return typeof body.model === "string" ? body.model : "";
 }
 
-/* spp-proxy:DLT-002 — the pooled Anthropic endpoint rejects context_management
- * (the proxy sends a fixed anthropic-beta that does not enable it), so drop it
- * from the upstream body; clients may still send it and it is ignored. */
-export function dropUnsupportedUpstreamFields(
-	body: Record<string, unknown>,
-): Record<string, unknown> {
-	const cleaned: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(body)) {
-		if (key === "context_management") {
-			continue;
+/* spp-proxy:DLT-003 — the upstream anthropic-beta is the mandatory oauth/claude
+ * -code tokens unioned with the client's, so client capability flags (e.g.
+ * extended-cache-ttl, context-management) survive; duplicates are removed. */
+function mergeBeta(clientBeta: string | undefined): string {
+	const merged: string[] = [];
+	const seen = new Set<string>();
+	const add = (raw: string): void => {
+		const token = raw.trim();
+		if (token.length > 0 && !seen.has(token)) {
+			seen.add(token);
+			merged.push(token);
 		}
-		cleaned[key] = value;
+	};
+	for (const token of ANTHROPIC_BETA.split(",")) {
+		add(token);
 	}
-	return cleaned;
+	if (clientBeta !== undefined) {
+		for (const token of clientBeta.split(",")) {
+			add(token);
+		}
+	}
+	return merged.join(",");
 }
 
 export function buildUpstreamHeaders(
 	accessToken: string,
+	clientBeta?: string,
 ): Record<string, string> {
 	return {
 		authorization: `Bearer ${accessToken}`,
 		"anthropic-version": ANTHROPIC_VERSION,
-		"anthropic-beta": ANTHROPIC_BETA,
+		"anthropic-beta": mergeBeta(clientBeta),
 		"content-type": "application/json",
 	};
 }
