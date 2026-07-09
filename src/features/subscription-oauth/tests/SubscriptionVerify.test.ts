@@ -6,6 +6,7 @@
  * @covers spp-subscription-oauth:BEH-005
  * @covers spp-subscription-oauth:DLT-001
  * @covers spp-subscription-oauth:DLT-004
+ * @covers spp-subscription-oauth:DLT-005
  */
 
 import Database from "better-sqlite3";
@@ -29,6 +30,7 @@ import type {
 	ExchangeCodeInput,
 	SubscriptionOAuthProvider,
 } from "../ports/outbound/SubscriptionOAuthProvider.ts";
+import { openAiAccessToken } from "./openAiAccessToken.ts";
 
 interface TestRecord {
 	name: string;
@@ -106,6 +108,7 @@ async function testNetworkFailureIsInconclusive(): Promise<void> {
 }
 
 async function testOpenAiValidStatusIsValid(): Promise<void> {
+	const accessToken = openAiAccessToken();
 	let capturedUrl = "";
 	let capturedInit: RequestInit | undefined;
 	const fetchFn: FetchFn = (input, init) => {
@@ -119,26 +122,38 @@ async function testOpenAiValidStatusIsValid(): Promise<void> {
 		return Promise.resolve(new Response("{}", { status: 200 }));
 	};
 	const verdict = await new OpenAiOAuthProvider({ fetchFn })
-		.verifyCredentials("openai-token")
+		.verifyCredentials(accessToken)
 		.catch(() => "inconclusive" as const);
 
 	assert(verdict === "valid", "OpenAI 2xx credential check is valid");
 	assert(
-		capturedUrl === "https://auth.openai.com/api/accounts",
-		"OpenAI accounts endpoint",
+		capturedUrl === "https://chatgpt.com/backend-api/wham/accounts/check",
+		"ChatGPT accounts-check endpoint",
 	);
 	assert(capturedInit !== undefined, "accounts request captured");
 	const headers = new Headers(capturedInit.headers);
 	assert(
-		headers.get("authorization") === "Bearer openai-token",
+		headers.get("authorization") === `Bearer ${accessToken}`,
 		"subscription Bearer forwarded",
 	);
+	assert(
+		headers.get("chatgpt-account-id") === "account-1",
+		"ChatGPT account id forwarded",
+	);
+}
+
+async function testOpenAiMissingAccountClaimIsInvalid(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({ fetchFn: statusFetch(200) });
+
+	const verdict = await provider.verifyCredentials(openAiAccessToken(null));
+
+	assert(verdict === "invalid", "OpenAI token without account id is invalid");
 }
 
 async function testOpenAiUnauthorizedStatusIsInvalid(): Promise<void> {
 	const provider = new OpenAiOAuthProvider({ fetchFn: statusFetch(401) });
 
-	const verdict = await provider.verifyCredentials("openai-token");
+	const verdict = await provider.verifyCredentials(openAiAccessToken());
 
 	assert(verdict === "invalid", "OpenAI 401 credential check is invalid");
 }
@@ -146,7 +161,7 @@ async function testOpenAiUnauthorizedStatusIsInvalid(): Promise<void> {
 async function testOpenAiForbiddenStatusIsInvalid(): Promise<void> {
 	const provider = new OpenAiOAuthProvider({ fetchFn: statusFetch(403) });
 
-	const verdict = await provider.verifyCredentials("openai-token");
+	const verdict = await provider.verifyCredentials(openAiAccessToken());
 
 	assert(verdict === "invalid", "OpenAI 403 credential check is invalid");
 }
@@ -154,7 +169,7 @@ async function testOpenAiForbiddenStatusIsInvalid(): Promise<void> {
 async function testOpenAiServerErrorIsInconclusive(): Promise<void> {
 	const provider = new OpenAiOAuthProvider({ fetchFn: statusFetch(500) });
 
-	const verdict = await provider.verifyCredentials("openai-token");
+	const verdict = await provider.verifyCredentials(openAiAccessToken());
 
 	assert(
 		verdict === "inconclusive",
@@ -166,7 +181,7 @@ async function testOpenAiNetworkFailureIsInconclusive(): Promise<void> {
 	const rejecting: FetchFn = () => Promise.reject(new Error("network down"));
 	const provider = new OpenAiOAuthProvider({ fetchFn: rejecting });
 
-	const verdict = await provider.verifyCredentials("openai-token");
+	const verdict = await provider.verifyCredentials(openAiAccessToken());
 
 	assert(verdict === "inconclusive", "OpenAI network failure is inconclusive");
 }
@@ -298,6 +313,10 @@ async function main(): Promise<void> {
 		testNetworkFailureIsInconclusive,
 	);
 	await runTest("openai_valid_status_is_valid", testOpenAiValidStatusIsValid);
+	await runTest(
+		"openai_missing_account_claim_is_invalid",
+		testOpenAiMissingAccountClaimIsInvalid,
+	);
 	await runTest(
 		"openai_unauthorized_status_is_invalid",
 		testOpenAiUnauthorizedStatusIsInvalid,

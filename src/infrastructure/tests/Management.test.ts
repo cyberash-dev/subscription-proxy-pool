@@ -6,6 +6,7 @@
  * @covers spp-mgmt-http:SURF-001
  * @covers spp-mgmt-http:DLT-001
  * @covers spp-mgmt-http:DLT-002
+ * @covers spp-subscription-oauth:DLT-005
  * @covers pol:POL-AUTH-001
  */
 
@@ -43,6 +44,7 @@ import { SqliteSubscriptionRepository } from "../../features/subscriptions/adapt
 import { crypterForTests } from "../../shared/crypto/tests/crypterForTests.ts";
 import { SqliteLoadRepository } from "../../features/load-monitor/adapters/outbound/SqliteLoadRepository.ts";
 import { ManagementHttpServer } from "../ManagementHttpServer.ts";
+import { startTokenServer } from "./ManagementTokenServer.ts";
 
 interface TestRecord {
 	name: string;
@@ -85,40 +87,6 @@ class FakeIdentityProvider implements IdentityProvider {
 			email: "alice@test",
 		});
 	}
-}
-
-interface TokenServer {
-	readonly url: string;
-	readonly baseUrl: string;
-	close(): Promise<void>;
-}
-
-async function startTokenServer(verifyStatus = 200): Promise<TokenServer> {
-	const { createServer } = await import("node:http");
-	let n = 0;
-	const server = createServer((req, res) => {
-		if ((req.url ?? "").startsWith("/v1/messages")) {
-			res.writeHead(verifyStatus, { "content-type": "application/json" });
-			res.end("{}");
-			return;
-		}
-		n += 1;
-		res.writeHead(200, { "content-type": "application/json" });
-		res.end(
-			JSON.stringify({
-				access_token: `at-${n}`,
-				refresh_token: `rt-${n}`,
-				expires_in: 3600,
-			}),
-		);
-	});
-	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-	const port = (server.address() as AddressInfo).port;
-	return {
-		url: `http://127.0.0.1:${port}/token`,
-		baseUrl: `http://127.0.0.1:${port}`,
-		close: () => new Promise<void>((resolve) => server.close(() => resolve())),
-	};
 }
 
 interface Harness {

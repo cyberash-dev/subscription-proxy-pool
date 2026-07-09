@@ -3,6 +3,7 @@
  * refresh-token rotation, and strict validation of token responses.
  *
  * @covers spp-subscription-oauth:DLT-003
+ * @covers spp-subscription-oauth:DLT-005
  * @covers spp-subscription-oauth:EXT-002
  * @covers spp-subscription-oauth:CNST-002
  * @covers pol:POL-PROVIDER-001
@@ -75,6 +76,17 @@ function formBody(captured: CapturedRequest): URLSearchParams {
 	assert(captured.init !== undefined, "request captured");
 	assert(typeof captured.init.body === "string", "request body is a string");
 	return new URLSearchParams(captured.init.body);
+}
+
+function accessTokenWithPayload(payload: unknown): string {
+	const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
+		"base64url",
+	);
+	return `header.${encodedPayload}.signature`;
+}
+
+function successfulAccountsFetch(): FetchFn {
+	return () => Promise.resolve(new Response(null, { status: 200 }));
 }
 
 async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
@@ -214,6 +226,46 @@ async function testRejectsIncompleteTokenResponse(): Promise<void> {
 	);
 }
 
+async function testRejectsMalformedAccessToken(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({
+		fetchFn: successfulAccountsFetch(),
+	});
+
+	const verdict = await provider.verifyCredentials("not-a-jwt");
+
+	assert(verdict === "invalid", "malformed access token rejected");
+}
+
+async function testRejectsInvalidAccessTokenPayload(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({
+		fetchFn: successfulAccountsFetch(),
+	});
+
+	const verdict = await provider.verifyCredentials("header.not-json.signature");
+
+	assert(verdict === "invalid", "invalid access token payload rejected");
+}
+
+async function testRejectsNonObjectAccessTokenPayload(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({
+		fetchFn: successfulAccountsFetch(),
+	});
+
+	const verdict = await provider.verifyCredentials(accessTokenWithPayload([]));
+
+	assert(verdict === "invalid", "non-object access token payload rejected");
+}
+
+async function testRejectsMissingAuthClaims(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({
+		fetchFn: successfulAccountsFetch(),
+	});
+
+	const verdict = await provider.verifyCredentials(accessTokenWithPayload({}));
+
+	assert(verdict === "invalid", "missing OpenAI auth claims rejected");
+}
+
 async function main(): Promise<void> {
 	await runTest("builds_pkce_url", testBuildsPkceUrl);
 	await runTest("exchanges_code", testExchangesCode);
@@ -223,6 +275,19 @@ async function main(): Promise<void> {
 		"rejects_incomplete_token_response",
 		testRejectsIncompleteTokenResponse,
 	);
+	await runTest(
+		"rejects_malformed_access_token",
+		testRejectsMalformedAccessToken,
+	);
+	await runTest(
+		"rejects_invalid_access_token_payload",
+		testRejectsInvalidAccessTokenPayload,
+	);
+	await runTest(
+		"rejects_non_object_access_token_payload",
+		testRejectsNonObjectAccessTokenPayload,
+	);
+	await runTest("rejects_missing_auth_claims", testRejectsMissingAuthClaims);
 
 	const report = { suite: "OpenAiOAuth", results };
 	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

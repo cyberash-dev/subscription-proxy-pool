@@ -43,7 +43,8 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 			options.authorizeUrl ?? "https://auth.openai.com/oauth/authorize";
 		this.tokenUrl = options.tokenUrl ?? "https://auth.openai.com/oauth/token";
 		this.accountsUrl =
-			options.accountsUrl ?? "https://auth.openai.com/api/accounts";
+			options.accountsUrl ??
+			"https://chatgpt.com/backend-api/wham/accounts/check";
 		this.redirectUri =
 			options.redirectUri ?? "http://localhost:1455/auth/callback";
 		this.clientId = options.clientId ?? "app_EMoamEEZ73f0CkXaXp7hrann";
@@ -81,12 +82,17 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 	}
 
 	async verifyCredentials(accessToken: string): Promise<CredentialVerdict> {
+		const accountId = chatGptAccountId(accessToken);
+		if (accountId === undefined) {
+			return "invalid";
+		}
 		let response: Response;
 		try {
 			response = await this.fetchFn(this.accountsUrl, {
 				method: "GET",
 				headers: {
 					authorization: `Bearer ${accessToken}`,
+					"chatgpt-account-id": accountId,
 					accept: "application/json",
 				},
 			});
@@ -136,4 +142,30 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function chatGptAccountId(accessToken: string): string | undefined {
+	const encodedPayload = /^[^.]+\.([^.]+)\.[^.]+$/.exec(accessToken)?.[1];
+	if (encodedPayload === undefined) {
+		return undefined;
+	}
+	let payload: unknown;
+	try {
+		payload = JSON.parse(
+			Buffer.from(encodedPayload, "base64url").toString("utf8"),
+		) as unknown;
+	} catch {
+		return undefined;
+	}
+	if (!isJsonObject(payload)) {
+		return undefined;
+	}
+	const authClaims = payload["https://api.openai.com/auth"];
+	if (!isJsonObject(authClaims)) {
+		return undefined;
+	}
+	const accountId = authClaims.chatgpt_account_id;
+	return typeof accountId === "string" && accountId.length > 0
+		? accountId
+		: undefined;
 }

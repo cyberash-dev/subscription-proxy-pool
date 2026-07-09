@@ -413,6 +413,31 @@ test_obligations: [to:spp-subscription-oauth:DLT-004:openai_verify]
 ---
 ```
 
+```yaml
+---
+id: spp-subscription-oauth:DLT-005
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T22:21:04.959Z
+  change_request: Fix OpenAI credential verification
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "OpenAI credential verification no longer calls the OAuth issuer's /api/accounts route. The adapter extracts chatgpt_account_id from the freshly exchanged access-token JWT claim https://api.openai.com/auth and performs GET https://chatgpt.com/backend-api/wham/accounts/check with Authorization: Bearer <access_token> and ChatGPT-Account-ID: <account_id>. A 2xx response is valid, 401/403 or a missing account claim is invalid, and network failure or any other status is inconclusive. No Codex executable or Codex local state is used."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "A valid OpenAI ChatGPT grant was sent to https://auth.openai.com/api/accounts without ChatGPT-Account-ID; the route rejected it and completeLink returned subscription_credentials_invalid."
+tests_new_behavior: "A live-shaped JWT and fake ChatGPT accounts-check endpoint prove that both required headers are sent to the backend route and a 2xx response allows completeLink to create the OpenAI subscription; malformed/missing account claims and 401/403 remain rejected."
+test_obligations:
+  - to:spp-subscription-oauth:DLT-005:chatgpt_accounts_check
+  - to:spp-subscription-oauth:DLT-005:valid_openai_link_regression
+---
+```
+
 ## 16. Implementation bindings
 
 `none`.
