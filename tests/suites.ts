@@ -9,6 +9,7 @@ export const SUITE_FILES: ReadonlyArray<string> = [
 	"src/features/auth/tests/Auth.test.ts",
 	"src/features/access-keys/tests/AccessKeys.test.ts",
 	"src/features/subscription-oauth/tests/SubscriptionOauth.test.ts",
+	"src/features/subscription-oauth/tests/OpenAiOAuth.test.ts",
 	"src/features/subscription-oauth/tests/TokenManager.test.ts",
 	"src/features/subscription-oauth/tests/SubscriptionVerify.test.ts",
 	"src/features/subscriptions/tests/Subscriptions.test.ts",

@@ -148,9 +148,10 @@ export class SqliteSubscriptionRepository implements SubscriptionRepository {
 		return rows.map((row) => this.toSubscription(row));
 	}
 
-	async listActive(): Promise<Subscription[]> {
+	async listActive(provider: ProviderId): Promise<Subscription[]> {
 		const rows = await this.engine.all<Row>(
-			"SELECT * FROM subscriptions WHERE status = 'active'",
+			"SELECT * FROM subscriptions WHERE provider = ? AND status = 'active'",
+			[provider],
 		);
 		return rows.map((row) => this.toSubscription(row));
 	}

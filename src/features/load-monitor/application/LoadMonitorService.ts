@@ -10,6 +10,7 @@ import type {
 	LoadSource,
 	RateLimitSample,
 } from "../../../shared/domain/Load.ts";
+import type { ProviderId } from "../../../shared/domain/Provider.ts";
 import type { LoadRepository } from "../ports/outbound/LoadRepository.ts";
 import type { UpstreamProbe } from "../ports/outbound/UpstreamProbe.ts";
 import type { LoadMonitorPort } from "../ports/inbound/LoadMonitorPort.ts";
@@ -19,7 +20,9 @@ export interface LoadMonitorDeps {
 	readonly probe: UpstreamProbe;
 	readonly clock: Clock;
 	readonly idleThresholdMs: number;
-	readonly listActiveSubscriptionIds: () => Promise<ReadonlyArray<string>>;
+	readonly listActiveSubscriptionIds: (
+		provider: ProviderId,
+	) => Promise<ReadonlyArray<string>>;
 	readonly ensureFreshToken: (subscriptionId: string) => Promise<string>;
 }
 
@@ -35,7 +38,7 @@ export class LoadMonitorService implements LoadMonitorPort {
 
 	async probeIdle(): Promise<void> {
 		const nowMs = this.deps.clock.nowMs();
-		const ids = await this.deps.listActiveSubscriptionIds();
+		const ids = await this.deps.listActiveSubscriptionIds("anthropic");
 		for (const subscriptionId of ids) {
 			try {
 				if (await this.shouldSkip(subscriptionId, nowMs)) {

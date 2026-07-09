@@ -58,6 +58,29 @@ approval_record:
 ---
 ```
 
+```yaml
+---
+id: spp-mgmt-http:DLT-002
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T21:12:18.021Z
+  change_request: OpenAI subscription linking
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "POST /api/subscriptions/login with provider=openai now returns 200 with the existing {authorize_url,state} shape instead of provider_not_implemented. After the user submits the OpenAI link code to POST /api/subscriptions/complete with the existing {state,code,label?} shape, the endpoint returns 201 {subscription_id}; GET /api/subscriptions and GET /api/pools expose provider=openai while continuing to omit tokens. Existing Anthropic shapes are unchanged. Additive provider support bumps the effective spp-mgmt-http version from 1.1.0 to 1.2.0."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "An OpenAI begin-link request failed with provider_not_implemented and could not create a subscription."
+tests_new_behavior: "An authenticated management client completes the OpenAI begin/code/complete flow and observes one token-free provider=openai subscription in its pool."
+test_obligations: [to:spp-mgmt-http:DLT-002:openai_link]
+---
+```
+
 ## Members
 
 - `GET /auth/login/:provider` → 302 to the OIDC authorize URL.

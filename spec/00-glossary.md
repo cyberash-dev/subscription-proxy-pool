@@ -8,7 +8,7 @@ Non-normative shared vocabulary.
   grant used to pay for inference.
 - **Identity provider** — an OIDC issuer (Microsoft/Google/…) behind the
   `IdentityProvider` port.
-- **Subscription provider** — Anthropic (or, as a seam, OpenAI) behind the
+- **Subscription provider** — Anthropic or OpenAI behind the
   `SubscriptionOAuthProvider` port.
 - **External identity** — `(issuer, subject)` verified at L1 login, plus email.
 - **Session** — a management-API bearer credential (stored hashed).
@@ -20,6 +20,8 @@ Non-normative shared vocabulary.
 - **Pool kind** — where a subscription lives: `user` or `donor`.
 - **Pool target** — which pool a proxy key draws from: `own` or `donor`.
 - **Grant** — an OAuth access/refresh token pair with an expiry.
+- **Link code** — the single-use code shown after provider authorization and
+  submitted to complete a subscription link.
 - **Representative window** — the authoritative rate-limit window
   (`anthropic-ratelimit-unified-representative-claim`): 5h or 7d.
 - **Fence** — excluding a subscription from selection while it is rate-limited

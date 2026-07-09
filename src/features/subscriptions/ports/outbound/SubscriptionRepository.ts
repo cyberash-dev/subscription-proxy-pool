@@ -42,8 +42,8 @@ export interface SubscriptionRepository {
 		ownerUserId: string | null,
 		provider: ProviderId,
 	): Promise<Subscription[]>;
-	/* All active subscriptions, any pool (prober). */
-	listActive(): Promise<Subscription[]>;
+	/* All active subscriptions for a provider, any pool (prober). */
+	listActive(provider: ProviderId): Promise<Subscription[]>;
 	/* Management read: subscriptions matching the filter, all statuses. */
 	list(filter: SubscriptionFilter): Promise<Subscription[]>;
 }

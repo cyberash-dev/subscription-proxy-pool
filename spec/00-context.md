@@ -25,7 +25,8 @@ Anthropic-compatible HTTP proxy for Claude Code. It:
 - Not a model. It brokers credentials and forwards to Anthropic.
 - Not multi-instance: in-process state (in-flight counters, single-flight
   refresh) assumes one instance per `SPP_HOME`.
-- OpenAI is a declared provider seam only; L2 inference is Anthropic in M1.
+- OpenAI subscriptions can be linked and stored through a direct provider
+  browser-code flow; L2 inference remains Anthropic-only in this milestone.
 
 ## Two-level authorization
 
@@ -50,8 +51,8 @@ are managed by `sdd token` / `sdd refresh`.
 id: spp:BL-001
 type: BrownfieldBaseline
 baseline_version: m1-2026-07-04
-freshness_token: pending
-baseline_commit_sha: pending
+freshness_token: dc4d4503780b6e6a8d88aaca81c53d0612aa0fb2bbf33fece7a53f010715babb
+baseline_commit_sha: 508bcbdfd4864d453a1c8e1ce2aaf160f00f1272
 mechanism: git_tree_hash_v1
 discovery_scope:
   - kind: source_tree

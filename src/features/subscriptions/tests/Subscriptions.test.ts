@@ -270,6 +270,33 @@ async function testTokensEncryptedAtRest(): Promise<void> {
 	}
 }
 
+async function testActiveListFiltersByProvider(): Promise<void> {
+	const h = await mkHarness();
+	try {
+		const anthropic = await h.service.add({
+			...anthropicGrant(),
+			poolKind: "donor",
+		});
+		await h.service.add({
+			...anthropicGrant(),
+			provider: "openai",
+			accessToken: "openai-access",
+			refreshToken: "openai-refresh",
+			poolKind: "donor",
+		});
+
+		const active = await h.repo.listActive("anthropic");
+
+		assert(active.length === 1, "only one Anthropic subscription is active");
+		assert(
+			active[0]?.subscriptionId === anthropic.subscriptionId,
+			"OpenAI subscription is excluded from Anthropic active list",
+		);
+	} finally {
+		h.cleanup();
+	}
+}
+
 async function main(): Promise<void> {
 	await runTest("add_to_user_pool", testAddToUserPool);
 	await runTest("add_to_donor_pool", testAddToDonorPool);
@@ -281,6 +308,10 @@ async function main(): Promise<void> {
 	await runTest("disable_by_non_owner_rejected", testDisableByNonOwnerRejected);
 	await runTest("summaries_omit_tokens", testSummariesOmitTokens);
 	await runTest("tokens_encrypted_at_rest", testTokensEncryptedAtRest);
+	await runTest(
+		"active_list_filters_by_provider",
+		testActiveListFiltersByProvider,
+	);
 
 	const report = { suite: "Subscriptions", results };
 	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

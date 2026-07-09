@@ -211,7 +211,28 @@ unmodeled: []
 
 ## 15. Deltas
 
-`none`.
+```yaml
+---
+id: spp-load-monitor:DLT-001
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T21:12:23.356Z
+  change_request: OpenAI subscription linking
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "The Anthropic active prober receives only active provider=anthropic subscriptions. Active OpenAI subscriptions are excluded from probeIdle until an OpenAI-specific prober is specified; no OpenAI access token is sent to api.anthropic.com. Passive Anthropic harvesting and selection are unchanged."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "The prober enumerated every active subscription without filtering provider."
+tests_new_behavior: "With one active Anthropic and one active OpenAI subscription, the Anthropic probe is called only for the Anthropic subscription."
+test_obligations: [to:spp-load-monitor:DLT-001:anthropic_only_probe]
+---
+```
 
 ## 16. Implementation bindings
 

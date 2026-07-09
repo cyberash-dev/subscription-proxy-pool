@@ -5,6 +5,7 @@
  *
  * @covers spp-subscription-oauth:BEH-005
  * @covers spp-subscription-oauth:DLT-001
+ * @covers spp-subscription-oauth:DLT-004
  */
 
 import Database from "better-sqlite3";
@@ -47,7 +48,7 @@ async function runTest(name: string, fn: () => Promise<void>): Promise<void> {
 	}
 }
 
-function assert(cond: boolean, label: string): void {
+function assert(cond: boolean, label: string): asserts cond {
 	if (!cond) {
 		throw new Error(label);
 	}
@@ -104,18 +105,70 @@ async function testNetworkFailureIsInconclusive(): Promise<void> {
 	assert(verdict === "inconclusive", "network failure is inconclusive");
 }
 
-async function testOpenAiVerifyNotImplemented(): Promise<void> {
-	let message = "";
-	try {
-		await new OpenAiOAuthProvider().verifyCredentials("tok");
-	} catch (err) {
-		message = err instanceof Error ? err.message : String(err);
-	}
+async function testOpenAiValidStatusIsValid(): Promise<void> {
+	let capturedUrl = "";
+	let capturedInit: RequestInit | undefined;
+	const fetchFn: FetchFn = (input, init) => {
+		capturedUrl =
+			typeof input === "string"
+				? input
+				: input instanceof URL
+					? input.href
+					: input.url;
+		capturedInit = init;
+		return Promise.resolve(new Response("{}", { status: 200 }));
+	};
+	const verdict = await new OpenAiOAuthProvider({ fetchFn })
+		.verifyCredentials("openai-token")
+		.catch(() => "inconclusive" as const);
+
+	assert(verdict === "valid", "OpenAI 2xx credential check is valid");
+	assert(
+		capturedUrl === "https://auth.openai.com/api/accounts",
+		"OpenAI accounts endpoint",
+	);
+	assert(capturedInit !== undefined, "accounts request captured");
+	const headers = new Headers(capturedInit.headers);
+	assert(
+		headers.get("authorization") === "Bearer openai-token",
+		"subscription Bearer forwarded",
+	);
+}
+
+async function testOpenAiUnauthorizedStatusIsInvalid(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({ fetchFn: statusFetch(401) });
+
+	const verdict = await provider.verifyCredentials("openai-token");
+
+	assert(verdict === "invalid", "OpenAI 401 credential check is invalid");
+}
+
+async function testOpenAiForbiddenStatusIsInvalid(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({ fetchFn: statusFetch(403) });
+
+	const verdict = await provider.verifyCredentials("openai-token");
+
+	assert(verdict === "invalid", "OpenAI 403 credential check is invalid");
+}
+
+async function testOpenAiServerErrorIsInconclusive(): Promise<void> {
+	const provider = new OpenAiOAuthProvider({ fetchFn: statusFetch(500) });
+
+	const verdict = await provider.verifyCredentials("openai-token");
 
 	assert(
-		message.includes("provider_not_implemented"),
-		"openai verifyCredentials reports not-implemented",
+		verdict === "inconclusive",
+		"OpenAI 500 credential check is inconclusive",
 	);
+}
+
+async function testOpenAiNetworkFailureIsInconclusive(): Promise<void> {
+	const rejecting: FetchFn = () => Promise.reject(new Error("network down"));
+	const provider = new OpenAiOAuthProvider({ fetchFn: rejecting });
+
+	const verdict = await provider.verifyCredentials("openai-token");
+
+	assert(verdict === "inconclusive", "OpenAI network failure is inconclusive");
 }
 
 class FakeGateProvider implements SubscriptionOAuthProvider {
@@ -244,9 +297,22 @@ async function main(): Promise<void> {
 		"network_failure_is_inconclusive",
 		testNetworkFailureIsInconclusive,
 	);
+	await runTest("openai_valid_status_is_valid", testOpenAiValidStatusIsValid);
 	await runTest(
-		"openai_verify_not_implemented",
-		testOpenAiVerifyNotImplemented,
+		"openai_unauthorized_status_is_invalid",
+		testOpenAiUnauthorizedStatusIsInvalid,
+	);
+	await runTest(
+		"openai_forbidden_status_is_invalid",
+		testOpenAiForbiddenStatusIsInvalid,
+	);
+	await runTest(
+		"openai_server_error_is_inconclusive",
+		testOpenAiServerErrorIsInconclusive,
+	);
+	await runTest(
+		"openai_network_failure_is_inconclusive",
+		testOpenAiNetworkFailureIsInconclusive,
 	);
 	await runTest("valid_credentials_link", testValidCredentialsLink);
 	await runTest("invalid_credentials_rejected", testInvalidCredentialsRejected);

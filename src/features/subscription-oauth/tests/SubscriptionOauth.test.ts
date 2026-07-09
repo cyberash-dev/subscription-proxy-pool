@@ -10,7 +10,6 @@
  * @covers spp-subscription-oauth:CNST-001
  * @covers spp-subscription-oauth:DLT-002
  * @covers spp-subscription-oauth:EXT-001
- * @covers pol:POL-PROVIDER-001
  */
 
 import Database from "better-sqlite3";
@@ -27,7 +26,6 @@ import type { ProviderId } from "../../../shared/domain/Provider.ts";
 import { SqlitePkceSessionRepository } from "../../../shared/pkce/SqlitePkceSessionRepository.ts";
 import { SubscriptionOAuthService } from "../application/SubscriptionOAuthService.ts";
 import { AnthropicOAuthProvider } from "../adapters/outbound/AnthropicOAuthProvider.ts";
-import { OpenAiOAuthProvider } from "../adapters/outbound/OpenAiOAuthProvider.ts";
 import type { SubscriptionOAuthProvider } from "../ports/outbound/SubscriptionOAuthProvider.ts";
 
 interface TestRecord {
@@ -51,7 +49,7 @@ async function runTest(
 	}
 }
 
-function assert(cond: boolean, label: string): void {
+function assert(cond: boolean, label: string): asserts cond {
 	if (!cond) {
 		throw new Error(label);
 	}
@@ -146,7 +144,6 @@ async function mkHarness(): Promise<Harness> {
 	});
 	const providers = new Map<ProviderId, SubscriptionOAuthProvider>([
 		["anthropic", anthropic],
-		["openai", new OpenAiOAuthProvider()],
 	]);
 	const service = new SubscriptionOAuthService(
 		providers,
@@ -269,24 +266,6 @@ async function testUserPoolRequiresOwner(): Promise<void> {
 	}
 }
 
-async function testOpenAiNotImplemented(): Promise<void> {
-	const h = await mkHarness();
-	try {
-		let message = "";
-		try {
-			await h.service.beginLink({ provider: "openai", poolKind: "donor" });
-		} catch (err) {
-			message = err instanceof Error ? err.message : String(err);
-		}
-		assert(
-			message.includes("provider_not_implemented"),
-			"openai reports not-implemented",
-		);
-	} finally {
-		await h.cleanup();
-	}
-}
-
 async function main(): Promise<void> {
 	await runTest("begin_link_builds_pkce_url", testBeginLinkBuildsPkceUrl);
 	await runTest("complete_link_exchanges_code", testCompleteLinkExchangesCode);
@@ -296,8 +275,6 @@ async function main(): Promise<void> {
 	);
 	await runTest("complete_link_single_use", testCompleteLinkSingleUse);
 	await runTest("user_pool_requires_owner", testUserPoolRequiresOwner);
-	await runTest("openai_not_implemented", testOpenAiNotImplemented);
-
 	const report = { suite: "SubscriptionOauth", results };
 	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 	if (results.some((r) => !r.ok)) {

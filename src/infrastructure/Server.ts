@@ -216,8 +216,10 @@ export class Server {
 			}),
 			clock,
 			idleThresholdMs: this.config.idleThresholdMs,
-			listActiveSubscriptionIds: async () =>
-				(await subscriptionsRepo.listActive()).map((s) => s.subscriptionId),
+			listActiveSubscriptionIds: async (provider) =>
+				(await subscriptionsRepo.listActive(provider)).map(
+					(subscription) => subscription.subscriptionId,
+				),
 			ensureFreshToken: async (subscriptionId) => {
 				const sub = await subscriptionsRepo.findById(subscriptionId);
 				if (sub === undefined) {

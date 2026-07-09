@@ -44,3 +44,26 @@ approval_record: not_applicable_for_proposed
 ## Open-Q
 
 `none`.
+
+```yaml
+---
+id: pol:DLT-001
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T21:12:07.582Z
+  change_request: OpenAI subscription linking
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "OpenAI becomes an implemented SubscriptionOAuthProvider. The old negative obligation that OpenAI returns provider_not_implemented is withdrawn and replaced by proof that OpenAI provider-specific URLs, parameters, token parsing, refresh, and verification remain inside its outbound adapter while application callers use the unchanged provider-neutral port."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "Selecting OpenAI always returned provider_not_implemented."
+tests_new_behavior: "Selecting OpenAI executes its adapter through the shared port; provider-specific literals do not appear in subscription application code."
+test_obligations: [to:pol:DLT-001:openai_adapter_boundary]
+---
+```

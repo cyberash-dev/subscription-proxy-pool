@@ -7,6 +7,7 @@
  * @covers spp-load-monitor:BEH-003
  * @covers spp-load-monitor:CNT-001
  * @covers spp-load-monitor:CNST-001
+ * @covers spp-load-monitor:DLT-001
  */
 
 import Database from "better-sqlite3";
@@ -18,6 +19,7 @@ import { SqliteEngine } from "../../../shared/db/SqliteEngine.ts";
 import { applyMigrations } from "../../../shared/db/Migrations.ts";
 import { FakeClock } from "../../../shared/domain/Clock.ts";
 import type { RateLimitSample } from "../../../shared/domain/Load.ts";
+import type { ProviderId } from "../../../shared/domain/Provider.ts";
 import { parseRateLimitHeaders } from "../domain/RateLimit.ts";
 import { LoadMonitorService } from "../application/LoadMonitorService.ts";
 import { SqliteLoadRepository } from "../adapters/outbound/SqliteLoadRepository.ts";
@@ -231,6 +233,33 @@ async function testProbeIdleProbesFreshSkipsCooldownAndRecent(): Promise<void> {
 	}
 }
 
+async function testProbeIdleRequestsAnthropicSubscriptions(): Promise<void> {
+	const h = await mkProberHarness();
+	try {
+		let requestedProvider: ProviderId | undefined;
+		const service = new LoadMonitorService({
+			loads: h.loads,
+			probe: h.probe,
+			clock: new FakeClock(NOW),
+			idleThresholdMs: 120_000,
+			listActiveSubscriptionIds: (provider?: ProviderId) => {
+				requestedProvider = provider;
+				return Promise.resolve([]);
+			},
+			ensureFreshToken: () => Promise.resolve("tok"),
+		});
+
+		await service.probeIdle();
+
+		assert(
+			requestedProvider === "anthropic",
+			"idle prober requests only Anthropic subscriptions",
+		);
+	} finally {
+		h.cleanup();
+	}
+}
+
 async function main(): Promise<void> {
 	await runTest("parse_allowed_headers", () => {
 		testParseAllowedHeaders();
@@ -251,6 +280,10 @@ async function main(): Promise<void> {
 	await runTest(
 		"probe_idle_probes_fresh_skips_cooldown_and_recent",
 		testProbeIdleProbesFreshSkipsCooldownAndRecent,
+	);
+	await runTest(
+		"probe_idle_requests_anthropic_subscriptions",
+		testProbeIdleRequestsAnthropicSubscriptions,
 	);
 
 	const report = { suite: "LoadMonitor", results };

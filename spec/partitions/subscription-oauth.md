@@ -2,10 +2,9 @@
 
 ## 1. Context
 
-Level-2 subscription OAuth: PKCE begin/complete for linking a Claude Code
-subscription, plus single-flight token refresh. Provider specifics live behind
-the `SubscriptionOAuthProvider` port; Anthropic is implemented, OpenAI is a stub
-seam.
+Level-2 subscription authorization: PKCE begin/code/complete for linking
+Anthropic and OpenAI subscriptions, plus single-flight token refresh. Provider
+specifics live behind the `SubscriptionOAuthProvider` port.
 
 ## 2. Glossary
 
@@ -285,6 +284,27 @@ approval_record:
     scope: first-time-approval
 ```
 
+```yaml
+---
+id: spp-subscription-oauth:EXT-002
+template: ExternalDependency
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T21:11:36.675Z
+  change_request: OpenAI subscription linking
+  scope: first-time-approval
+version: 1
+applicability: { axis_invariant: true }
+provider: OpenAI ChatGPT subscription authorization
+surface: "browser authorization at https://auth.openai.com/oauth/authorize; authorization-code and refresh exchange at https://auth.openai.com/oauth/token; credential validation at https://auth.openai.com/api/accounts; public client app_EMoamEEZ73f0CkXaXp7hrann; scopes openid profile email offline_access"
+failure_modes: "authorization parameter or endpoint drift; expired or reused link code; refresh-token rotation; account/workspace permission rejection; response missing access_token or refresh_token"
+policy_refs: [pol:POL-PROVIDER-001, pol:POL-SECRET-001]
+test_obligations: [to:spp-subscription-oauth:EXT-002:faked_openai_endpoints]
+---
+```
+
 ## 10. Generated artifacts
 
 `none`.
@@ -316,13 +336,82 @@ approval_record:
     scope: first-time-approval
 ```
 
+```yaml
+---
+id: spp-subscription-oauth:CNST-002
+template: Constraint
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T21:11:47.879Z
+  change_request: OpenAI subscription linking
+  scope: first-time-approval
+version: 1
+applicability: { axis_invariant: true }
+statement: "OpenAI linking uses Authorization Code with S256 PKCE through direct HTTP. The authorize URL carries response_type=code, client_id, redirect_uri=http://localhost:1455/auth/callback, scope=openid profile email offline_access, state, code_challenge, and code_challenge_method=S256. Code and refresh exchanges are application/x-www-form-urlencoded POSTs to the token endpoint with the same client_id; code exchange also sends redirect_uri and code_verifier."
+rationale: "Matches the OpenAI browser-code subscription flow while preserving the proxy's existing begin-link and manual complete-link contract and avoiding a runtime dependency on Codex CLI."
+test_obligations: [to:spp-subscription-oauth:CNST-002:openai_wire_shape]
+---
+```
+
 ## 14. Migrations
 
 `none`.
 
 ## 15. Deltas
 
-`none`.
+```yaml
+---
+id: spp-subscription-oauth:DLT-003
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T21:11:55.174Z
+  change_request: OpenAI subscription linking
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "OpenAI stops being a provider_not_implemented seam. beginLink for provider=openai returns an OpenAI browser authorization URL carrying the persisted state and S256 PKCE challenge. After the user authorizes and submits the resulting link code, completeLink exchanges that code directly with the OpenAI token endpoint, verifies the returned access token, and returns an OAuthGrant whose provider remains openai. refresh exchanges the stored refresh token directly with OpenAI. The service never invokes the codex executable and does not import Codex CLI state. Anthropic behavior and the SubscriptionOAuthProvider port shape are unchanged."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "Every OpenAI provider operation raised provider_not_implemented and no network request was attempted."
+tests_new_behavior: "The OpenAI adapter builds a state-bound PKCE URL, exchanges a submitted code for access/refresh credentials, refreshes credentials with refresh_token, and performs all operations through injected HTTP against a fake OpenAI endpoint without spawning codex."
+test_obligations:
+  [
+    to:spp-subscription-oauth:DLT-003:openai_begin,
+    to:spp-subscription-oauth:DLT-003:openai_exchange,
+    to:spp-subscription-oauth:DLT-003:openai_refresh,
+    to:spp-subscription-oauth:DLT-003:direct_http_only,
+  ]
+---
+```
+
+```yaml
+---
+id: spp-subscription-oauth:DLT-004
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-09T21:12:01.496Z
+  change_request: OpenAI subscription linking
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "For provider=openai, verifyCredentials validates the freshly exchanged Bearer against the OpenAI accounts endpoint rather than an inference request: 2xx is valid, 401/403 is invalid, and network failure or any other status is inconclusive. Anthropic keeps its existing minimal inference verification. This specializes spp-subscription-oauth:BEH-005 without changing completeLink's valid/invalid/inconclusive gate."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "OpenAI verifyCredentials raised provider_not_implemented."
+tests_new_behavior: "A fake OpenAI accounts endpoint proves the Bearer is sent only in Authorization and each status class maps to the existing CredentialVerdict taxonomy."
+test_obligations: [to:spp-subscription-oauth:DLT-004:openai_verify]
+---
+```
 
 ## 16. Implementation bindings
 
@@ -340,4 +429,4 @@ approval_record:
 
 ## 19. Out of scope
 
-The OpenAI OAuth flow itself (seam only in M1).
+OpenAI inference routing, OpenAI load harvesting, and an OpenAI active prober.

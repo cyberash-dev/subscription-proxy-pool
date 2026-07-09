@@ -18,8 +18,10 @@ Standalone Node 20+ / TypeScript service. SQLite by default; PostgreSQL supporte
 - **L1**: a user logs in via social OIDC (Microsoft/Google/… — any OIDC issuer by
   config) to work with the pool. Social tokens are used only to verify identity
   and are never stored.
-- **L2**: the user links their Claude Code subscription (OAuth, PKCE). The grant
-  is stored and refreshed (single-flight) and pays for inference.
+- **L2**: the user links an Anthropic or OpenAI subscription with an
+  authorization-code + PKCE flow. The grant is stored and refreshed
+  (single-flight). The inference surface currently uses Anthropic grants only;
+  OpenAI grants are available for management and refresh.
 - **Proxy key**: issued under an L1 session; it is what Claude Code presents.
   The key alone decides the user and the pool (`own` or `donor`) — no header
   chooses the pool.
@@ -71,6 +73,14 @@ export ANTHROPIC_AUTH_TOKEN=<proxy_key>
 All `/api/*` require the session bearer. The session and the proxy key are not
 interchangeable.
 
+To link OpenAI, start the flow with
+`POST /api/subscriptions/login` and
+`{"provider":"openai","pool_kind":"user"}`. Open the returned
+`authorize_url`, authorize the subscription, then submit the resulting code to
+`POST /api/subscriptions/complete` as `{"state":"...","code":"..."}`.
+The service exchanges and refreshes credentials directly through OpenAI HTTP
+endpoints; it does not invoke the Codex CLI.
+
 ## How selection + load work
 
 - Every proxied response's `anthropic-ratelimit-unified-*` headers are harvested
@@ -81,7 +91,8 @@ interchangeable.
 - On `401` the token is refreshed once and retried; on `429`/`5xx`/refresh
   failure the request fails over to the next-least-loaded subscription.
 - An optional in-process prober (`SPP_PROBE_ENABLED=true`) refreshes idle
-  subscriptions' load with a cheap Haiku request.
+  Anthropic subscriptions' load with a cheap Haiku request. It never probes
+  OpenAI subscriptions through the Anthropic endpoint.
 
 ## Configuration (env)
 

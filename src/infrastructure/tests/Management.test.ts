@@ -5,6 +5,7 @@
  *
  * @covers spp-mgmt-http:SURF-001
  * @covers spp-mgmt-http:DLT-001
+ * @covers spp-mgmt-http:DLT-002
  * @covers pol:POL-AUTH-001
  */
 
@@ -158,7 +159,14 @@ async function mkHarness(verifyStatus = 200): Promise<Harness> {
 				clientId: "cc",
 			}),
 		],
-		["openai", new OpenAiOAuthProvider()],
+		[
+			"openai",
+			new OpenAiOAuthProvider({
+				clock,
+				tokenUrl: tokenServer.url,
+				accountsUrl: `${tokenServer.baseUrl}/openai/accounts`,
+			}),
+		],
 	]);
 	const server: Server = new ManagementHttpServer({
 		auth,
@@ -254,19 +262,21 @@ async function linkSubscription(
 	base: string,
 	session: string,
 	poolKind: "user" | "donor",
+	provider: ProviderId = "anthropic",
 ): Promise<void> {
 	const begin = await fetch(`${base}/api/subscriptions/login`, {
 		method: "POST",
 		headers: authed(session),
-		body: JSON.stringify({ provider: "anthropic", pool_kind: poolKind }),
+		body: JSON.stringify({ provider, pool_kind: poolKind }),
 	});
+	assert(begin.status === 200, `${provider} subscription link starts`);
 	const beginBody = (await begin.json()) as { state: string };
 	const complete = await fetch(`${base}/api/subscriptions/complete`, {
 		method: "POST",
 		headers: authed(session),
 		body: JSON.stringify({ state: beginBody.state, code: "abc#state" }),
 	});
-	assert(complete.status === 201, `subscription linked to ${poolKind} pool`);
+	assert(complete.status === 201, `${provider} subscription linked`);
 }
 
 async function testSubscriptionLinkAndPools(): Promise<void> {
@@ -291,6 +301,26 @@ async function testSubscriptionLinkAndPools(): Promise<void> {
 		};
 		assert(poolsBody.own.length === 1, "own pool has one subscription");
 		assert(poolsBody.donor.length === 1, "donor pool has one subscription");
+	} finally {
+		await h.cleanup();
+	}
+}
+
+async function testOpenAiSubscriptionLink(): Promise<void> {
+	const h = await mkHarness();
+	try {
+		const session = await login(h.base);
+		await linkSubscription(h.base, session, "user", "openai");
+
+		const subscriptionsResponse = await fetch(`${h.base}/api/subscriptions`, {
+			headers: authed(session),
+		});
+		const subscriptionsBody = (await subscriptionsResponse.json()) as {
+			subscriptions: Array<{ provider: ProviderId }>;
+		};
+		const [subscription] = subscriptionsBody.subscriptions;
+		assert(subscription !== undefined, "OpenAI subscription summary returned");
+		assert(subscription.provider === "openai", "OpenAI provider preserved");
 	} finally {
 		await h.cleanup();
 	}
@@ -343,6 +373,7 @@ async function main(): Promise<void> {
 	await runTest("session_required", testSessionRequired);
 	await runTest("login_issues_session_and_keys", testLoginIssuesSessionAndKeys);
 	await runTest("subscription_link_and_pools", testSubscriptionLinkAndPools);
+	await runTest("openai_subscription_link", testOpenAiSubscriptionLink);
 	await runTest("bad_session_rejected", testBadSessionRejected);
 	await runTest(
 		"complete_rejects_invalid_credentials",
