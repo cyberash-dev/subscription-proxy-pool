@@ -51,8 +51,8 @@ are managed by `sdd token` / `sdd refresh`.
 id: spp:BL-001
 type: BrownfieldBaseline
 baseline_version: m1-2026-07-04
-freshness_token: dc4d4503780b6e6a8d88aaca81c53d0612aa0fb2bbf33fece7a53f010715babb
-baseline_commit_sha: 508bcbdfd4864d453a1c8e1ce2aaf160f00f1272
+freshness_token: 2a3a29cde35ac1cc77f61f0a110693a84fb35d90ccffc7ba19b6dee4c96d11a0
+baseline_commit_sha: 330102b3acca67d08aca5303071054e47ba2cd8d
 mechanism: git_tree_hash_v1
 discovery_scope:
   - kind: source_tree
