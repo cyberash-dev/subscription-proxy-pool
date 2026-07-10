@@ -44,6 +44,21 @@ export function mkSub(id: string, accessToken: string): Subscription {
 	};
 }
 
+/* An OpenAI access token is a JWT whose payload carries the chatgpt_account_id
+   claim the bridge request needs; only the payload segment is meaningful here. */
+export function mkOpenAiToken(accountId: string): string {
+	const payload = Buffer.from(
+		JSON.stringify({
+			"https://api.openai.com/auth": { chatgpt_account_id: accountId },
+		}),
+	).toString("base64url");
+	return `header.${payload}.signature`;
+}
+
+export function mkOpenAiSub(id: string, accountId: string): Subscription {
+	return { ...mkSub(id, mkOpenAiToken(accountId)), provider: "openai" };
+}
+
 export class FakeAccessKeys implements AccessKeysPort {
 	resolvePrincipal(bearer: string): Promise<Principal | undefined> {
 		if (bearer === "good-own") {
@@ -83,7 +98,10 @@ export class FakeSelector implements PoolSelectionPort {
 
 export class FakeTokens {
 	refreshCount = 0;
-	constructor(private readonly failRefresh = false) {}
+	constructor(
+		private readonly failRefresh = false,
+		private readonly refreshedToken = "refreshed-token",
+	) {}
 	ensureFresh(sub: TokenSubscription): Promise<string> {
 		return Promise.resolve(sub.accessToken);
 	}
@@ -92,7 +110,7 @@ export class FakeTokens {
 		if (this.failRefresh) {
 			return Promise.reject(new RefreshFailed(sub.subscriptionId, "boom"));
 		}
-		return Promise.resolve("refreshed-token");
+		return Promise.resolve(this.refreshedToken);
 	}
 }
 
@@ -140,6 +158,7 @@ export function mkUseCase(
 		clock:
 			overrides.clock ?? new FakeClock(Date.parse("2026-07-04T00:00:00.000Z")),
 		anthropicBaseUrl: overrides.anthropicBaseUrl ?? "https://upstream.test",
+		openaiBridgeBaseUrl: overrides.openaiBridgeBaseUrl ?? "https://bridge.test",
 		maxAttempts: overrides.maxAttempts,
 	});
 }

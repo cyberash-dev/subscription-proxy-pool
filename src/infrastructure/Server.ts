@@ -139,6 +139,7 @@ export class Server {
 			inFlight,
 			clock,
 			anthropicBaseUrl: this.config.anthropicBaseUrl,
+			openaiBridgeBaseUrl: this.config.openaiBridgeBaseUrl,
 		});
 
 		this.proxyServer = new ProxyHttpServer(proxyUseCase).createServer();

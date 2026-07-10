@@ -14,26 +14,29 @@ Anthropic-compatible HTTP proxy for Claude Code. It:
 - Runs a two-level authorization model: level 1 is user identity via social
   OIDC (Microsoft/Google/…); level 2 is the stored Claude Code subscription OAuth
   grant that pays for inference.
-- Proxies `POST /v1/messages` for Claude Code, injecting the pooled
-  subscription's Bearer token + required beta headers, and harvests the
-  Anthropic unified rate-limit headers to balance load.
+- Proxies `POST /v1/messages` for Claude Code. Anthropic models go directly to
+  Anthropic with the pooled Anthropic Bearer and required beta headers. OpenAI
+  model families go through a separately deployed Anthropic-to-OpenAI bridge
+  with a pooled OpenAI subscription credential.
 - Refreshes subscription tokens (single-flight), fences rate-limited
   subscriptions, and probes idle ones on a schedule.
 
 ## What this package is not
 
-- Not a model. It brokers credentials and forwards to Anthropic.
+- Not a model or a protocol translator. It brokers credentials and forwards to
+  Anthropic or to the separately deployed OpenAI bridge.
 - Not multi-instance: in-process state (in-flight counters, single-flight
   refresh) assumes one instance per `SPP_HOME`.
-- OpenAI subscriptions can be linked and stored through a direct provider
-  browser-code flow; L2 inference remains Anthropic-only in this milestone.
+- OpenAI subscriptions are linked and stored through a direct provider
+  browser-code flow; their inference requests are translated by the separate
+  bridge service.
 
 ## Two-level authorization
 
 | Level            | Credential                        | Surface                       |
 | ---------------- | --------------------------------- | ----------------------------- |
 | L1 identity      | OIDC session bearer               | management HTTP `/api/*`      |
-| L2 inference     | subscription OAuth grant (stored) | forwarded to Anthropic        |
+| L2 inference     | subscription OAuth grant (stored) | forwarded by provider route   |
 | Inference caller | proxy key bearer                  | inference HTTP `/v1/messages` |
 
 The session bearer and the proxy key are distinct credentials and are not

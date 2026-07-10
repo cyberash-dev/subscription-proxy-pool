@@ -47,6 +47,10 @@ function testDefaults(): void {
 		config.anthropicBaseUrl === "https://api.anthropic.com",
 		"default upstream base",
 	);
+	assert(
+		config.openaiBridgeBaseUrl === "http://127.0.0.1:8080",
+		"default openai bridge base",
+	);
 	assert(config.oidcProviders.size === 0, "no OIDC providers by default");
 	assert(config.dbPath.endsWith("pool.db"), "db path under home");
 }

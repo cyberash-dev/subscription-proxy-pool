@@ -5,7 +5,9 @@
  */
 
 import type { Clock } from "../../../shared/domain/Clock.ts";
+import type { ProviderId } from "../../../shared/domain/Provider.ts";
 import { noCapacity, unauthorized } from "../../../shared/http/Errors.ts";
+import { chatGptAccountId } from "../../../shared/openai/Constants.ts";
 import type { AccessKeysPort } from "../../access-keys/ports/inbound/AccessKeysPort.ts";
 import { parseRateLimitHeaders } from "../../load-monitor/domain/RateLimit.ts";
 import type { LoadMonitorPort } from "../../load-monitor/ports/inbound/LoadMonitorPort.ts";
@@ -17,12 +19,19 @@ import {
 } from "../../subscription-oauth/application/TokenManager.ts";
 import type { Subscription } from "../../subscriptions/domain/Subscription.ts";
 import {
+	buildBridgeHeaders,
+	providerForModel,
+} from "../domain/ProviderRouting.ts";
+import {
 	buildUpstreamHeaders,
 	ensureIdentitySystemBlock,
 	filterResponseHeaders,
 	modelOf,
 } from "../domain/SystemPrompt.ts";
-import type { UpstreamGateway } from "../ports/outbound/UpstreamGateway.ts";
+import type {
+	UpstreamGateway,
+	UpstreamRequest,
+} from "../ports/outbound/UpstreamGateway.ts";
 import type {
 	ProxyPort,
 	ProxyRelay,
@@ -38,6 +47,7 @@ export interface HandleMessagesDeps {
 	readonly inFlight: InFlightTracker;
 	readonly clock: Clock;
 	readonly anthropicBaseUrl: string;
+	readonly openaiBridgeBaseUrl: string;
 	readonly maxAttempts?: number;
 }
 
@@ -53,6 +63,7 @@ export class HandleMessagesUseCase implements ProxyPort {
 			throw unauthorized("invalid or missing proxy key");
 		}
 
+		const provider = providerForModel(modelOf(request.body));
 		const maxAttempts = this.deps.maxAttempts ?? 3;
 		const tried = new Set<string>();
 		for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -61,7 +72,7 @@ export class HandleMessagesUseCase implements ProxyPort {
 				{
 					poolTarget: principal.poolTarget,
 					userId: principal.userId,
-					provider: "anthropic",
+					provider,
 				},
 				tried,
 			);
@@ -76,7 +87,7 @@ export class HandleMessagesUseCase implements ProxyPort {
 			};
 
 			try {
-				const relay = await this.attempt(request, subscription);
+				const relay = await this.attempt(request, subscription, provider);
 				if (relay === "failover") {
 					release();
 					continue;
@@ -96,16 +107,25 @@ export class HandleMessagesUseCase implements ProxyPort {
 	private async attempt(
 		request: ProxyRequest,
 		subscription: Subscription,
+		provider: ProviderId,
 	): Promise<Omit<ProxyRelay, "release"> | "failover"> {
 		let accessToken = await this.deps.tokens.ensureFresh(subscription);
-		let response = await this.forwardOnce(request, accessToken);
+		let outbound = this.buildOutbound(request, provider, accessToken);
+		if (outbound === null) {
+			return "failover";
+		}
+		let response = await this.deps.upstream.forward(outbound);
 		await this.harvest(subscription.subscriptionId, response);
 
 		if (response.status === 401) {
 			await response.body?.cancel();
 			/* Reactive refresh (throws RefreshFailed → caller fails over). */
 			accessToken = await this.deps.tokens.refreshNow(subscription);
-			response = await this.forwardOnce(request, accessToken);
+			outbound = this.buildOutbound(request, provider, accessToken);
+			if (outbound === null) {
+				return "failover";
+			}
+			response = await this.deps.upstream.forward(outbound);
 			await this.harvest(subscription.subscriptionId, response);
 			if (response.status === 401) {
 				await response.body?.cancel();
@@ -125,10 +145,27 @@ export class HandleMessagesUseCase implements ProxyPort {
 		};
 	}
 
-	private forwardOnce(
+	/* Provider-specific outbound. Anthropic keeps identity injection and beta
+	   headers; OpenAI goes to the configured bridge with an account-scoped Bearer
+	   and no identity. A null return means the credential can't build a valid
+	   bridge request (no account id) and the caller fails over. */
+	private buildOutbound(
 		request: ProxyRequest,
+		provider: ProviderId,
 		accessToken: string,
-	): Promise<Response> {
+	): UpstreamRequest | null {
+		if (provider === "openai") {
+			const accountId = chatGptAccountId(accessToken);
+			if (accountId === undefined) {
+				return null;
+			}
+			return {
+				url: `${this.deps.openaiBridgeBaseUrl}${request.path}`,
+				method: "POST",
+				headers: buildBridgeHeaders(accessToken, accountId, request.wantStream),
+				body: JSON.stringify(request.body),
+			};
+		}
 		const injected = ensureIdentitySystemBlock(
 			request.body,
 			modelOf(request.body),
@@ -137,12 +174,12 @@ export class HandleMessagesUseCase implements ProxyPort {
 		headers["accept"] = request.wantStream
 			? "text/event-stream"
 			: "application/json";
-		return this.deps.upstream.forward({
+		return {
 			url: `${this.deps.anthropicBaseUrl}${request.path}`,
 			method: "POST",
 			headers,
 			body: JSON.stringify(injected),
-		});
+		};
 	}
 
 	private async harvest(

@@ -6,6 +6,10 @@
 import type { ProviderId } from "../../../../shared/domain/Provider.ts";
 import { systemClock, type Clock } from "../../../../shared/domain/Clock.ts";
 import { type FetchFn, systemFetch } from "../../../../shared/http/Fetch.ts";
+import {
+	CHATGPT_ACCOUNT_ID_HEADER,
+	chatGptAccountId,
+} from "../../../../shared/openai/Constants.ts";
 import type { OAuthGrant } from "../../domain/OAuthGrant.ts";
 import type {
 	AuthorizeUrlInput,
@@ -92,7 +96,7 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 				method: "GET",
 				headers: {
 					authorization: `Bearer ${accessToken}`,
-					"chatgpt-account-id": accountId,
+					[CHATGPT_ACCOUNT_ID_HEADER]: accountId,
 					accept: "application/json",
 				},
 			});
@@ -142,30 +146,4 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function chatGptAccountId(accessToken: string): string | undefined {
-	const encodedPayload = /^[^.]+\.([^.]+)\.[^.]+$/.exec(accessToken)?.[1];
-	if (encodedPayload === undefined) {
-		return undefined;
-	}
-	let payload: unknown;
-	try {
-		payload = JSON.parse(
-			Buffer.from(encodedPayload, "base64url").toString("utf8"),
-		) as unknown;
-	} catch {
-		return undefined;
-	}
-	if (!isJsonObject(payload)) {
-		return undefined;
-	}
-	const authClaims = payload["https://api.openai.com/auth"];
-	if (!isJsonObject(authClaims)) {
-		return undefined;
-	}
-	const accountId = authClaims.chatgpt_account_id;
-	return typeof accountId === "string" && accountId.length > 0
-		? accountId
-		: undefined;
 }

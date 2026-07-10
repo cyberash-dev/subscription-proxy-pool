@@ -3,10 +3,12 @@
 ## 1. Context
 
 The Anthropic-compatible inference surface for Claude Code. Authenticates the
-proxy key, routes to the principal's pool, injects the pooled subscription's
-Bearer + beta headers and the Claude Code identity, forwards to Anthropic,
-harvests rate-limit headers, and relays (streaming) the response. A 401 triggers
-one refresh+retry; 429/5xx/refresh-failure fail over to the next subscription.
+proxy key, derives the subscription provider from the model, routes to the
+principal's provider-specific pool, and relays the provider response. Anthropic
+requests retain direct forwarding with the Claude Code identity and beta
+headers. OpenAI requests go through the configured OpenAI bridge with a fresh
+OpenAI subscription credential. A 401 triggers one refresh+retry;
+429/5xx/refresh-failure fail over within the selected provider.
 
 ## 2. Glossary
 
@@ -40,7 +42,7 @@ discovery_scope:
     http_routes:
       [POST /v1/messages, POST /v1/messages/count_tokens, GET /health]
   datasets: []
-  flags: [SPP_PROXY_PORT, SPP_ANTHROPIC_BASE_URL]
+  flags: [SPP_PROXY_PORT, SPP_ANTHROPIC_BASE_URL, SPP_OPENAI_BRIDGE_BASE_URL]
   freshness_token: pending
 unmodeled: []
 ```
@@ -157,6 +159,80 @@ unmodeled: []
     scope: first-time-approval
 ```
 
+```yaml
+---
+id: spp-proxy:BEH-006
+template: Behavior
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-10T22:06:46.325Z
+  change_request: "spp: model-based provider routing + OpenAI bridge"
+  scope: provider-routing
+version: 1
+applicability: { axis_invariant: true }
+given: "An authenticated inference request whose body contains a model identifier."
+when: "The proxy selects a subscription for the request."
+then: "A model beginning with gpt- or codex-, or matching o<digits> followed by end-of-string or -, selects provider=openai; every other model value selects provider=anthropic. Every retry and failover for the request stays inside that provider and the principal's pool."
+negative_cases:
+  - "no eligible subscription for the selected provider -> 503 overloaded_error; the proxy does not fall back to the other provider"
+out_of_scope: "runtime model catalogs and cross-provider failover"
+concurrency_model:
+  {
+    actor_concurrency: multi_global,
+    read_consistency: read_committed,
+    idempotency: not_applicable,
+    time_source: wall_clock,
+  }
+data_scope: all_data
+policy_refs: [pol:POL-AUTH-001, pol:POL-PROVIDER-001]
+test_obligations:
+  [
+    to:spp-proxy:BEH-006:model_routes_provider,
+    to:spp-proxy:BEH-006:no_cross_provider_fallback,
+  ]
+---
+```
+
+```yaml
+---
+id: spp-proxy:BEH-007
+template: Behavior
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-10T22:06:46.392Z
+  change_request: "spp: model-based provider routing + OpenAI bridge"
+  scope: provider-routing
+version: 1
+applicability: { axis_invariant: true }
+given: "A request classified as provider=openai and an OpenAI subscription selected from the principal's pool."
+when: "The proxy forwards one attempt."
+then: "The proxy obtains a fresh access token, derives ChatGPT-Account-ID from the token claim https://api.openai.com/auth.chatgpt_account_id, sends the original Anthropic Messages JSON body without Claude identity injection to the configured OpenAI bridge path, and relays the bridge status, safe response headers, and body."
+negative_cases:
+  - "bridge 401 -> refresh once on the same OpenAI subscription, then fail over to another OpenAI subscription after a second 401"
+  - "bridge 429, 529, or 5xx before relay -> record the available cooldown metadata and fail over to another OpenAI subscription"
+  - "POST /v1/messages/count_tokens for an OpenAI model -> relay the bridge response; bridge version 1 returns 404 not_found_error"
+out_of_scope: "translation inside SPP, OpenAI active probing, and retry after downstream response commitment"
+concurrency_model:
+  {
+    actor_concurrency: multi_global,
+    read_consistency: read_committed,
+    idempotency: not_applicable,
+    time_source: wall_clock,
+  }
+data_scope: all_data
+policy_refs: [pol:POL-AUTH-001, pol:POL-PROVIDER-001, pol:POL-SECRET-001]
+test_obligations:
+  [
+    to:spp-proxy:BEH-007:bridge_forward,
+    to:spp-proxy:BEH-007:bridge_refresh_failover,
+  ]
+---
+```
+
 ## 7. Data contracts
 
 ```yaml
@@ -192,6 +268,50 @@ unmodeled: []
     scope: first-time-approval
 ```
 
+```yaml
+---
+id: spp-proxy:CNT-002
+template: Contract
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-10T22:06:46.464Z
+  change_request: "spp: model-based provider routing + OpenAI bridge"
+  scope: provider-routing
+version: 1
+surface_ref: not_applicable
+applicability: { axis_invariant: true }
+schema:
+  config: "SPP_OPENAI_BRIDGE_BASE_URL, default http://127.0.0.1:8080"
+  request: "POST <bridge_base><original_path>; Authorization: Bearer <openai_access_token>; ChatGPT-Account-ID: <account_id>; Content-Type: application/json; Accept: text/event-stream when stream=true and application/json otherwise; body is the original Anthropic Messages JSON"
+  response: "Anthropic-compatible status, safe headers, SSE, JSON, or error envelope relayed by SPP"
+external_identifiers:
+  [
+    SPP_OPENAI_BRIDGE_BASE_URL,
+    Authorization,
+    ChatGPT-Account-ID,
+    Content-Type,
+    Accept,
+  ]
+preconditions: "The selected subscription has provider=openai and its fresh access token contains a non-empty ChatGPT account identifier."
+postconditions: "The caller proxy key, x-api-key, anthropic-version, anthropic-beta, refresh token, and arbitrary inbound headers are absent from the bridge request."
+compatibility_rules: "The bridge base URL comes only from process configuration and cannot be selected by an inbound request."
+error_taxonomy: "bridge HTTP errors are relayed through the existing Anthropic-compatible proxy contract; bridge transport errors do not expose credentials"
+concurrency_model:
+  {
+    actor_concurrency: multi_global,
+    read_consistency: read_committed,
+    idempotency: not_applicable,
+    time_source: wall_clock,
+  }
+data_scope: all_data
+policy_refs: [pol:POL-AUTH-001, pol:POL-PROVIDER-001, pol:POL-SECRET-001]
+test_obligations:
+  [to:spp-proxy:CNT-002:bridge_headers, to:spp-proxy:CNT-002:configured_url]
+---
+```
+
 ## 8. Invariants
 
 ```yaml
@@ -212,6 +332,28 @@ unmodeled: []
     timestamp: 2026-07-04T14:48:32.559Z
     change_request: "subscription-proxy-pool: first-time approval"
     scope: first-time-approval
+```
+
+```yaml
+---
+id: spp-proxy:INV-003
+template: Invariant
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-10T22:06:46.533Z
+  change_request: "spp: model-based provider routing + OpenAI bridge"
+  scope: provider-routing
+version: 1
+applicability: { axis_invariant: true }
+predicate: "An OpenAI-family model uses only an OpenAI subscription and the configured OpenAI bridge; every other model uses only an Anthropic subscription and the Anthropic upstream. The inbound proxy key and every subscription refresh token reach neither upstream."
+evidence: public_api
+stability: contractual
+data_scope: all_data
+policy_refs: [pol:POL-AUTH-001, pol:POL-PROVIDER-001, pol:POL-SECRET-001]
+test_obligations: [to:spp-proxy:INV-003:provider_isolation]
+---
 ```
 
 ```yaml
@@ -255,6 +397,36 @@ test_obligations: [to:spp-proxy:INV-002:mid_stream_failure_no_double_write]
     timestamp: 2026-07-04T14:48:32.907Z
     change_request: "subscription-proxy-pool: first-time approval"
     scope: first-time-approval
+```
+
+```yaml
+---
+id: spp-proxy:EXT-002
+template: ExternalDependency
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-10T22:06:46.601Z
+  change_request: "spp: model-based provider routing + OpenAI bridge"
+  scope: provider-routing
+version: 1
+applicability: { axis_invariant: true }
+provider: dumb-codex-oai-proxy
+provider_surface@version: "anthropic-messages-http@1.0.0"
+authority_url_or_doc: "dumb-codex-oai-proxy/spec/proxy.md, proxy:SURF-001 and proxy:CNT-001"
+consumer_contract: "POST /v1/messages with one OpenAI Bearer, ChatGPT-Account-ID, JSON Anthropic Messages body, and stream-dependent Accept; consume an Anthropic-compatible SSE, JSON, or error response. POST /v1/messages/count_tokens is unsupported by bridge version 1 and returns 404."
+drift_detection:
+  mechanism: contract_test_against_sandbox
+last_verified_at: 2026-07-10
+auth_scope: "one request-scoped OpenAI subscription access token and ChatGPT account identifier"
+rate_limits: "429 preserves Retry-After for SPP cooldown and failover"
+retry/idempotency: "SPP owns one refresh retry after 401 and bounded provider-local failover; the bridge performs no retry"
+error_taxonomy: "bridge preserves 401, 403, 429, and 5xx; bridge transport failure to OpenAI becomes 502 and timeout becomes 504"
+sandbox_or_fixture: "loopback HTTP bridge fixture asserting the exact request and returning Anthropic-compatible stream and JSON fixtures"
+policy_refs: [pol:POL-PROVIDER-001, pol:POL-SECRET-001]
+test_obligations: [to:spp-proxy:EXT-002:bridge_contract]
+---
 ```
 
 ```yaml
@@ -382,6 +554,34 @@ compatibility_action: no_longer_guaranteed
 tests_old_behavior: "the prepared upstream body omitted context_management (spp-proxy:DLT-002)."
 tests_new_behavior: "the prepared upstream body forwards context_management verbatim; model, messages and the injected identity system block are unchanged."
 test_obligations: [to:spp-proxy:DLT-004:forwards_context_management]
+---
+```
+
+```yaml
+---
+id: spp-proxy:DLT-005
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-10T22:06:46.669Z
+  change_request: "spp: model-based provider routing + OpenAI bridge"
+  scope: provider-routing
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "The inference proxy changes from an Anthropic-only upstream to model-based provider routing. spp-proxy:BEH-001, spp-proxy:BEH-002, and spp-proxy:BEH-004 remain the Anthropic branch; spp-proxy:BEH-006 and spp-proxy:BEH-007 add the OpenAI branch. spp-proxy:INV-001 is superseded by spp-proxy:INV-003 because the exact outbound header predicate becomes provider-dependent. The inbound paths, proxy-key authentication, Anthropic Messages request shape, Anthropic-compatible response shape, lease lifetime, refresh-on-401, and bounded failover remain unchanged. The predicate change to a contractual invariant referenced by spp-proxy-http:SURF-001 requires a major surface bump from 1.1.0 to 2.0.0."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "Every model selected provider=anthropic, received Claude identity preparation, and was sent directly to the Anthropic upstream with Anthropic headers."
+tests_new_behavior: "OpenAI model families select only provider=openai and are sent unchanged to the configured bridge with the selected OpenAI Bearer and account identifier; all other model values retain the Anthropic route and no request crosses provider pools."
+test_obligations:
+  [
+    to:spp-proxy:DLT-005:openai_route,
+    to:spp-proxy:DLT-005:anthropic_compatibility,
+    to:spp-proxy:DLT-005:provider_isolation,
+  ]
 ---
 ```
 

@@ -40,3 +40,30 @@ approval_record:
 - `GET /health` — liveness `{ status: "ok" }`, no auth.
 
 Errors use the Anthropic envelope `{ "type": "error", "error": { "type", "message" } }`.
+
+```yaml
+---
+id: spp-proxy-http:DLT-001
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-10T22:06:46.737Z
+  change_request: "spp: model-based provider routing + OpenAI bridge"
+  scope: provider-routing
+version: 1
+baseline_version: spp:BL-001
+kind: contract_change
+applicability: { axis_invariant: true }
+statement: "spp-proxy-http:SURF-001 retains its inbound paths, proxy-key authentication, Anthropic Messages request schema, and Anthropic-compatible response schema. It adds successful handling for OpenAI model families through spp-proxy:BEH-006, spp-proxy:BEH-007, spp-proxy:CNT-002, and spp-proxy:INV-003. Because spp-proxy:INV-001 had a contractual always-Anthropic header predicate and the replacement predicate is provider-dependent, the surface version changes from 1.1.0 to 2.0.0."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "Every accepted model was forwarded as an Anthropic subscription request."
+tests_new_behavior: "OpenAI model families use only OpenAI subscriptions through the configured bridge; the existing Anthropic route remains byte-compatible for all other model values."
+test_obligations:
+  [
+    to:spp-proxy-http:DLT-001:openai_route,
+    to:spp-proxy-http:DLT-001:anthropic_compatibility,
+  ]
+---
+```

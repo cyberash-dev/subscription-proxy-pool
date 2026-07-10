@@ -24,6 +24,7 @@ export interface AppConfig {
 	readonly mgmtPort: number;
 	readonly publicUrl: string;
 	readonly anthropicBaseUrl: string;
+	readonly openaiBridgeBaseUrl: string;
 	readonly dbFileMode: number;
 	readonly sessionTtlMs: number;
 	readonly probeEnabled: boolean;
@@ -122,6 +123,10 @@ export function loadConfig(): AppConfig {
 		anthropicBaseUrl: str(
 			"SPP_ANTHROPIC_BASE_URL",
 			"https://api.anthropic.com",
+		),
+		openaiBridgeBaseUrl: str(
+			"SPP_OPENAI_BRIDGE_BASE_URL",
+			"http://127.0.0.1:8080",
 		),
 		dbFileMode: num("SPP_DB_FILE_MODE", 0o600),
 		sessionTtlMs: num("SPP_SESSION_TTL_MS", 7 * 24 * 60 * 60 * 1000),
