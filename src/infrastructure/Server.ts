@@ -11,6 +11,7 @@ import type { AppConfig } from "../shared/config/Env.ts";
 import { openEngine } from "../shared/db/Connection.ts";
 import type { Engine } from "../shared/db/Engine.ts";
 import { systemClock, type Clock } from "../shared/domain/Clock.ts";
+import { StderrJsonLogger } from "../shared/observability/StderrJsonLogger.ts";
 import { systemFetch } from "../shared/http/Fetch.ts";
 import { installEgressProxy } from "../shared/net/EgressProxy.ts";
 import { SecretCrypter } from "../shared/crypto/SecretCrypter.ts";
@@ -191,6 +192,7 @@ export class Server {
 	private buildSubscriptionProviders(
 		clock: Clock,
 	): Map<ProviderId, SubscriptionOAuthProvider> {
+		const logger = new StderrJsonLogger(clock);
 		return new Map<ProviderId, SubscriptionOAuthProvider>([
 			[
 				"anthropic",
@@ -199,7 +201,7 @@ export class Server {
 					apiBase: this.config.anthropicBaseUrl,
 				}),
 			],
-			["openai", new OpenAiOAuthProvider()],
+			["openai", new OpenAiOAuthProvider({ logger })],
 		]);
 	}
 

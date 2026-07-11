@@ -7,6 +7,10 @@ import type { ProviderId } from "../../../../shared/domain/Provider.ts";
 import { systemClock, type Clock } from "../../../../shared/domain/Clock.ts";
 import { type FetchFn, systemFetch } from "../../../../shared/http/Fetch.ts";
 import {
+	NoopLogger,
+	type Logger,
+} from "../../../../shared/observability/Logger.ts";
+import {
 	CHATGPT_ACCOUNT_ID_HEADER,
 	chatGptAccountId,
 } from "../../../../shared/openai/Constants.ts";
@@ -27,6 +31,7 @@ export interface OpenAiOAuthOptions {
 	readonly redirectUri?: string;
 	readonly clientId?: string;
 	readonly scopes?: string;
+	readonly logger?: Logger;
 }
 
 export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
@@ -39,6 +44,7 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 	private readonly redirectUri: string;
 	private readonly clientId: string;
 	private readonly scopes: string;
+	private readonly logger: Logger;
 
 	constructor(options: OpenAiOAuthOptions = {}) {
 		this.clock = options.clock ?? systemClock;
@@ -53,6 +59,7 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 			options.redirectUri ?? "http://localhost:1455/auth/callback";
 		this.clientId = options.clientId ?? "app_EMoamEEZ73f0CkXaXp7hrann";
 		this.scopes = options.scopes ?? "openid profile email offline_access";
+		this.logger = options.logger ?? new NoopLogger();
 	}
 
 	buildAuthorizeUrl(input: AuthorizeUrlInput): Promise<string> {
@@ -103,11 +110,15 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 		} catch {
 			return "inconclusive";
 		}
+		const contentType = response.headers.get("content-type") ?? "";
 		await response.body?.cancel().catch(() => undefined);
-		if (response.status === 401 || response.status === 403) {
-			return "invalid";
-		}
-		return response.ok ? "valid" : "inconclusive";
+		const verdict = classifyAccountsVerdict(response.status, contentType);
+		this.logger.log(
+			verdict === "valid" ? "info" : "warn",
+			"SUBSCRIPTION_VERIFY",
+			{ provider: this.providerId, verdict, status: response.status },
+		);
+		return verdict;
 	}
 
 	private async tokenRequest(
@@ -142,6 +153,18 @@ export class OpenAiOAuthProvider implements SubscriptionOAuthProvider {
 			scopes: typeof json.scope === "string" ? json.scope : this.scopes,
 		};
 	}
+}
+
+function classifyAccountsVerdict(
+	status: number,
+	contentType: string,
+): CredentialVerdict {
+	if (status === 401 || status === 403) {
+		/* An edge/bot-management HTML block page on the ChatGPT backend is a
+		   transient egress failure, not a credential rejection — retry it. */
+		return contentType.includes("text/html") ? "inconclusive" : "invalid";
+	}
+	return status >= 200 && status < 300 ? "valid" : "inconclusive";
 }
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {

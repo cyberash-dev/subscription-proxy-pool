@@ -438,6 +438,29 @@ test_obligations:
 ---
 ```
 
+```yaml
+---
+id: spp-subscription-oauth:DLT-006
+template: Delta
+lifecycle.status: approved
+approval_record:
+  owner_role: tech-lead
+  approver_identity: cyberash
+  timestamp: 2026-07-11T21:06:37.418Z
+  change_request: "OpenAI accounts-check: HTML 403 (Cloudflare) -> inconclusive, not invalid (DLT-006)"
+  scope: first-time-approval
+version: 1
+baseline_version: spp:BL-001
+kind: behavior_change
+applicability: { axis_invariant: true }
+statement: "For provider=openai, verifyCredentials classifies a 401 or 403 from the OpenAI accounts endpoint by response body kind: an edge/bot-management block page (Content-Type text/html) is inconclusive (a transient egress failure), while a JSON API error body (or a body-less response) remains invalid. This refines spp-subscription-oauth:DLT-004's flat 401/403 to invalid mapping without changing completeLink's valid/invalid/inconclusive gate. Anthropic verification is unchanged."
+compatibility_action: no_longer_guaranteed
+tests_old_behavior: "DLT-004 mapped every 401/403 to invalid, including an HTML edge block page."
+tests_new_behavior: "A fake OpenAI accounts endpoint returning 403 with Content-Type text/html yields inconclusive; 401 or 403 with Content-Type application/json (or no body) yields invalid."
+test_obligations: [to:spp-subscription-oauth:DLT-006:openai_html_block]
+---
+```
+
 ## 16. Implementation bindings
 
 `none`.
